@@ -1,6 +1,15 @@
+import sqlite3
+
+import pandas as pd
+
+
 def get_connection():
-    import sqlite3 as sl
     import lib.globals
 
-    con = sl.connect(lib.globals.database_path)
+    con = sqlite3.connect(lib.globals.database_path)
     return con
+
+
+def get_table(con: sqlite3.Connection, table: str):
+    df = pd.read_sql_query(sql=f"SELECT * FROM {table}", con=con)
+    return df
