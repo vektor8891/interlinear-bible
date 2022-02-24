@@ -5,4 +5,5 @@ db_chapters = "chapters"
 db_interlinear = "interlinear"
 database_path = os.path.join("data", "bible.db")
 chapters_folder = "chapters"
+words_folder = "words"
 index_url = "index.html"
