@@ -96,13 +96,14 @@ def generate_chapter_content(con: sqlite3.Connection, chapter_ind: int):
             if not pd.isnull(verse):
                 html = f"{html}</p><p>"
             verse = row["verse"]
-            html = f"{html}<strong>{verse}</strong>:"
+            html = f'{html}<strong id="{verse}">{verse}</strong>:'
         punct = "" if pd.isnull(row["punct"]) else row["punct"]
         word = row["word_eng"]
         strong = row["strong_id"]
         if strong != "H0000":
             strong_ind = df_words.loc[df_words['strong_id'] == row["strong_id"]].ind.values[0]
-            html = f'{html} {word}{punct}<sub><a href="../{lib.globals.words_folder}/{strong_ind}.html">{strong}</a></sub>'
+            html = f'{html} {word}{punct}<sub><a href="../{lib.globals.words_folder}/{strong_ind}.html">' \
+                   f'{strong}</a></sub>'
     html = f"{html}</p>"
     return html
 
@@ -160,18 +161,19 @@ def generate_occurrences(strong_id: str, con: sqlite3.Connection):
         chapter = df_book.iloc[0].chapter
         book_title = " ".join([v.title() for v in book.split("_")])
         df_verse = df_verses[(df_verses["chapter_ind"] == row["chapter_ind"]) & (df_verses["verse"] == row['verse'])]
-        verse_html = generate_verse(df_verse=df_verse, con=con)
-        html = f"{html}<p><strong>{book_title} {chapter}:{row['verse']}</strong> {verse_html}</p>"
+        verse_html = generate_verse(df_verse=df_verse, con=con, strong_id=strong_id)
+        html = f'{html}<p><strong><a href="../{lib.globals.chapters_folder}/{row["chapter_ind"]}.html' \
+               f'#{row["verse"]}">{book_title} {chapter}:{row["verse"]}</a></strong> {verse_html}</p>'
     return html
 
 
-def generate_verse(df_verse: pd.DataFrame, con: sqlite3.Connection):
+def generate_verse(df_verse: pd.DataFrame, con: sqlite3.Connection, strong_id: str):
     df_words = lib.database.get_table(con=con, table=lib.globals.db_words)
     html = ""
     for i, row in df_verse.iterrows():
         punct = "" if pd.isnull(row["punct"]) else row["punct"]
-        word = row["word_eng"]
         strong = row["strong_id"]
+        word = f'<mark>{row["word_eng"]}</mark>' if strong_id == strong else row["word_eng"]
         strong_ind = df_words.loc[df_words['strong_id'] == row["strong_id"]].ind.values[0]
         html = f'{html} {word}{punct}<sub><a href="../{lib.globals.words_folder}/{strong_ind}.html">{strong}</a></sub>'
     return html
