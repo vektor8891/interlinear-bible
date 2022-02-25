@@ -45,14 +45,14 @@ def generate_toc(df_chapters: pd.DataFrame, con: sqlite3.Connection):
         f.write(toc)
 
 
-def generate_chapters(df_chapters: pd.DataFrame, con: sqlite3.Connection):
+def generate_chapters(df_chapters: pd.DataFrame, con: sqlite3.Connection, selected_words: list):
     for i, row in df_chapters.iterrows():
-        verses = generate_chapter_content(con=con, chapter_ind=row['ind'])
+        verses = generate_chapter_content(con=con, chapter_ind=row['ind'], selected_words=selected_words)
         book_title = " ".join([v.title() for v in row["book"].split("_")])
         chapter = row['chapter']
         print(f"Generate html for {book_title} {chapter}")
-        chapter_prev = max(df_chapters['ind']) if row["ind"] == 1 else row["ind"] - 1
-        chapter_next = 1 if row["ind"] == max(df_chapters['ind']) else row["ind"] + 1
+        chapter_prev = 1189 if row["ind"] == 1 else row["ind"] - 1
+        chapter_next = 1 if row["ind"] == 1189 else row["ind"] + 1
         index_url = lib.globals.index_url
         style = """sub {
             vertical-align: sub;
@@ -85,7 +85,7 @@ def generate_chapters(df_chapters: pd.DataFrame, con: sqlite3.Connection):
             f.write(html)
 
 
-def generate_chapter_content(con: sqlite3.Connection, chapter_ind: int):
+def generate_chapter_content(con: sqlite3.Connection, chapter_ind: int, selected_words: list):
     df_all = lib.database.get_table(con=con, table=lib.globals.db_interlinear)
     df_words = lib.database.get_table(con=con, table=lib.globals.db_words)
     df_chapter = df_all[df_all["chapter_ind"] == chapter_ind].copy()
@@ -98,8 +98,8 @@ def generate_chapter_content(con: sqlite3.Connection, chapter_ind: int):
             verse = row["verse"]
             html = f'{html}<strong id="{verse}">{verse}</strong>:'
         punct = "" if pd.isnull(row["punct"]) else row["punct"]
-        word = row["word_eng"]
         strong = row["strong_id"]
+        word = row["word_eng"] if strong not in selected_words else f'<mark>{row["word_eng"]}</mark>'
         if strong != "H0000":
             strong_ind = df_words.loc[df_words['strong_id'] == row["strong_id"]].ind.values[0]
             html = f'{html} {word}{punct}<sub><a href="../{lib.globals.words_folder}/{strong_ind}.html">' \
@@ -114,8 +114,8 @@ def generate_words(df_words: pd.DataFrame, con: sqlite3.Connection):
         translit = row['transliteration']
         definition = row['definition']
         print(f"Generate occurrences for {strong_id}")
-        strong_prev = max(df_words['ind']) if row["ind"] == 1 else row["ind"] - 1
-        strong_next = 1 if row["ind"] == max(df_words['ind']) else row["ind"] + 1
+        strong_prev = 14298 if row["ind"] == 1 else row["ind"] - 1
+        strong_next = 1 if row["ind"] == 14298 else row["ind"] + 1
         index_url = lib.globals.index_url
         strong_html = generate_occurrences(strong_id=strong_id, con=con)
         style = """sub {
@@ -173,7 +173,28 @@ def generate_verse(df_verse: pd.DataFrame, con: sqlite3.Connection, strong_id: s
     for i, row in df_verse.iterrows():
         punct = "" if pd.isnull(row["punct"]) else row["punct"]
         strong = row["strong_id"]
-        word = f'<mark>{row["word_eng"]}</mark>' if strong_id == strong else row["word_eng"]
-        strong_ind = df_words.loc[df_words['strong_id'] == row["strong_id"]].ind.values[0]
-        html = f'{html} {word}{punct}<sub><a href="../{lib.globals.words_folder}/{strong_ind}.html">{strong}</a></sub>'
+        if strong != "H0000":
+            word = f'<mark>{row["word_eng"]}</mark>' if strong_id == strong else row["word_eng"]
+            strong_ind = df_words.loc[df_words['strong_id'] == row["strong_id"]].ind.values[0]
+            html = f'{html} {word}{punct}<sub>' \
+                   f'<a href="../{lib.globals.words_folder}/{strong_ind}.html">{strong}</a></sub>'
     return html
+
+
+def update_chapters(con: sqlite3.Connection):
+    # find list of selected words
+    df_new_words = lib.google.get_selected_words()  # from Google sheet
+    df_old_words = pd.read_csv(lib.globals.selected_words_path)  # from local file
+    words_to_add = df_new_words[~df_new_words['strong'].isin(df_old_words['strong'].values)]
+    words_to_remove = df_old_words[~df_old_words['strong'].isin(df_new_words['strong'].values)]
+    words_to_change = pd.concat([words_to_add, words_to_remove])['strong'].values
+
+    # get list of affected chapters
+    df_verses = lib.database.get_table(con=con, table=lib.globals.db_interlinear)
+    df_verses_filt = df_verses.loc[df_verses["strong_id"].isin(words_to_change)]
+    df_chapters = lib.database.get_table(con=con, table=lib.globals.db_chapters)
+    df_chapters_filt = df_chapters[df_chapters['ind'].isin(df_verses_filt['chapter_ind'].values)]
+    generate_chapters(df_chapters=df_chapters_filt, con=con, selected_words=df_new_words['strong'].values)
+
+    # save new list
+    df_new_words.to_csv(lib.globals.selected_words_path, index=False)
