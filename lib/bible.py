@@ -16,33 +16,27 @@ def generate_toc(df_chapters: pd.DataFrame, con: sqlite3.Connection):
             chapters = "<p>"
         if row["book"] != book:
             if not pd.isnull(book):
-                chapters = "{0}</p><p>".format(chapters)
+                chapters = f"{chapters}</p><p>"
             book = row["book"]
             book_title = " ".join([v.title() for v in book.split("_")])
-            chapters = "{0}{1}:".format(chapters, book_title)
+            chapters = f"{chapters}{book_title}:"
         chapter = row["chapter"]
-        url = os.path.join(lib.globals.chapters_folder, f"{chapter}.html")
-        chapters = '{0} <a href="{1}">{2}</a>'.format(chapters, url, chapter)
-    chapters = "{0}</p>".format(chapters)
+        url = os.path.join(lib.globals.chapters_folder, f"{row['ind']}.html")
+        chapters = f'{chapters} <a href="{url}">{chapter}</a>'
+    chapters = f"{chapters}</p>"
 
-    toc = f"""<!DOCTYPE html>
-<html lang="en">
+    with open(lib.globals.template_path, 'r') as f_template:
+        template = f_template.read().replace('\n', '')
+        toc = template.format(title="Interlinear Bible",
+                              index_url=lib.globals.index_url,
+                              index_words_url=lib.globals.index_words_url,
+                              header="Interlinear Bible",
+                              content=chapters,
+                              path="")
 
-<head>
-    <meta charset="UTF-8">
-    <title>Interlinear Bible</title>
-</head>
-
-<body>
-    <h1>Interlinear Bible</h1>
-    {chapters}
-</body>
-
-</html>
-"""
-    # update contents of file
-    with open(lib.globals.index_url, 'w') as f:
-        f.write(toc)
+        # update contents of file
+        with open(lib.globals.index_url, 'w') as f_toc:
+            f_toc.write(toc)
 
 
 def generate_chapters(df_chapters: pd.DataFrame, con: sqlite3.Connection, selected_words: list):
@@ -53,36 +47,22 @@ def generate_chapters(df_chapters: pd.DataFrame, con: sqlite3.Connection, select
         print(f"Generate html for {book_title} {chapter}")
         chapter_prev = 1189 if row["ind"] == 1 else row["ind"] - 1
         chapter_next = 1 if row["ind"] == 1189 else row["ind"] + 1
-        index_url = lib.globals.index_url
-        style = """sub {
-            vertical-align: sub;
-            font-size: 0.6em;
-        }"""
 
-        html = f'''<!DOCTYPE html>
-<html lang="en">
+        with open(lib.globals.template_path, 'r') as f_template:
+            template = f_template.read().replace('\n', '')
+            title = f'{book_title} {chapter}'
+            content = f'<p><a href="{chapter_prev}.html">< Previous</a>&nbsp;&nbsp;' \
+                      f'<a href="../{lib.globals.index_url}">Home</a>&nbsp;&nbsp;' \
+                      f'<a href="{chapter_next}.html">Next ></a></p>' \
+                      f'{verses}'
+            html = template.format(title=title,
+                                   header=title,
+                                   content=content,
+                                   path="../")
 
-<head>
-    <meta charset="UTF-8">
-    <title>{book_title} {chapter}</title>
-    <style type="text/css" media="Screen">
-        {style}
-    </style>
-</head>
-
-<body>
-    <h1>{book_title} {chapter}</h1>
-    <p><a href="{chapter_prev}.html">< Previous</a>&nbsp;
-    <a href="../{index_url}">Home</a>&nbsp;
-    <a href="{chapter_next}.html">Next ></a></p> 
-    {verses}
-</body>
-
-</html>
-'''
-        f_path = os.path.join(lib.globals.chapters_folder, f"{row['ind']}.html")
-        with open(f_path, 'w') as f:
-            f.write(html)
+            f_path = os.path.join(lib.globals.chapters_folder, f"{row['ind']}.html")
+            with open(f_path, 'w') as f:
+                f.write(html)
 
 
 def generate_chapter_content(con: sqlite3.Connection, chapter_ind: int, selected_words: list):
@@ -116,38 +96,24 @@ def generate_words(df_words: pd.DataFrame, con: sqlite3.Connection):
         print(f"Generate occurrences for {strong_id}")
         strong_prev = 14298 if row["ind"] == 1 else row["ind"] - 1
         strong_next = 1 if row["ind"] == 14298 else row["ind"] + 1
-        index_url = lib.globals.index_url
         strong_html = generate_occurrences(strong_id=strong_id, con=con)
-        style = """sub {
-                    vertical-align: sub;
-                    font-size: 0.6em;
-                }"""
 
-        html = f'''<!DOCTYPE html>
-        <html lang="en">
+        with open(lib.globals.template_path, 'r') as f_template:
+            template = f_template.read().replace('\n', '')
+            title = f'{strong_id}: {definition}'
+            header = f'{strong_id}: {translit} - {definition}'
+            content = f'<p><a href="{strong_prev}.html">< Previous</a>&nbsp;&nbsp;' \
+                      f'<a href="../{lib.globals.index_url}">Home</a>&nbsp;&nbsp;' \
+                      f'<a href="{strong_next}.html">Next ></a></p>' \
+                      f'{strong_html}'
+            html = template.format(title=title,
+                                   header=header,
+                                   content=content,
+                                   path="../")
 
-        <head>
-            <meta charset="UTF-8">
-            <title>{strong_id}: {definition}</title>
-            <style type="text/css" media="Screen">
-                {style}
-            </style>
-        </head>
-
-        <body>
-            <h1>{strong_id}: {translit} - {definition}</h1>
-            <p><a href="{strong_prev}.html">< Previous</a>&nbsp;
-            <a href="../{index_url}">Home</a>&nbsp;
-            <a href="{strong_next}.html">Next ></a></p> 
-            {strong_html}
-        </body>
-
-        </html>
-        '''
-
-        f_path = os.path.join(lib.globals.words_folder, f"{row['ind']}.html")
-        with open(f_path, 'w') as f:
-            f.write(html)
+            f_path = os.path.join(lib.globals.words_folder, f"{row['ind']}.html")
+            with open(f_path, 'w') as f:
+                f.write(html)
 
 
 def generate_occurrences(strong_id: str, con: sqlite3.Connection):
@@ -182,6 +148,7 @@ def generate_verse(df_verse: pd.DataFrame, con: sqlite3.Connection, strong_id: s
 
 
 def update_chapters(con: sqlite3.Connection):
+    import lib.google
     # find list of selected words
     df_new_words = lib.google.get_selected_words()  # from Google sheet
     df_old_words = pd.read_csv(lib.globals.selected_words_path)  # from local file
