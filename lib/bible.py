@@ -40,11 +40,11 @@ def generate_toc(df_chapters: pd.DataFrame, con: sqlite3.Connection):
 
 
 def generate_chapters(df_chapters: pd.DataFrame, con: sqlite3.Connection, selected_words: list):
-    for i, row in df_chapters.iterrows():
+    for i, row in df_chapters.reset_index().iterrows():
         verses = generate_chapter_content(con=con, chapter_ind=row['ind'], selected_words=selected_words)
         book_title = " ".join([v.title() for v in row["book"].split("_")])
         chapter = row['chapter']
-        print(f"Generate html for {book_title} {chapter}")
+        print(f"Generate html for {book_title} {chapter} ({i + 1}/{len(df_chapters)})")
         chapter_prev = 1189 if row["ind"] == 1 else row["ind"] - 1
         chapter_next = 1 if row["ind"] == 1189 else row["ind"] + 1
 
